@@ -1,0 +1,21 @@
+{
+  "name": "patient-ws",
+  "version": "1.0.0",
+  "description": "rest webservice for patient",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
+  },
+  "author": "Medas",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.6.0",
+    "jsonwebtoken": "^8.1.0",
+    "lodash": "^4.17.5",
+    "moment": "^2.19.2",
+    "mysql": "^2.15.0",
+    "restify": "^6.3.2",
+    "restify-cors-middleware": "^1.0.1"
+  }
+}
