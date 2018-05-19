@@ -1,5 +1,5 @@
 {
-  "name": "patient-ws",
+  "name": "referral-ws",
   "version": "1.0.0",
   "description": "rest webservice for patient",
   "main": "app.js",
