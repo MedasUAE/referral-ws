@@ -59,7 +59,6 @@ function login(user, next) {
 
         saveInRadis(data.token, commaSeparatedNameAndPass, (err, result) => {
             if (err) return next(err);
-            return callback(null, null, result)
         })
         return next(null, data);
     });
@@ -87,7 +86,7 @@ function checkUserRedis(token, res, next) {
             commaSeparatedNameAndPass = Date.now() + ',' + tokenValues[1] + ',' + tokenValues[2];
             //expire key after 31 minutes.
             redisClient.redisUser.set(token, commaSeparatedNameAndPass, 'EX', 60 * 31);
-            return next(null, null, result);
+            return next(result);
         }
 
     })
