@@ -1,71 +1,96 @@
-var db_query = require('../db/executeQuery');
-var jwt = require('jsonwebtoken');
 
-function authenticate(token, next) {
-    decriptToken(token, (err,user)=>{
-        if(err) return next(err);
+var UserModel = require('../models/user');
+var redisClient = require('../app');
+const bcrypt = require('bcrypt')
 
-        checkUser(user, (err)=>{
-            if(err) return next(err);
-            return next(null, user)
-        });
-    })
-}
-
-function isAuthenticate(req, res, next){
-
+function authenticate(token, res, next) {
+    checkUserRedis(token, res, (err, result) => {
+        if (err) return next(err);
+        return next(null, result)
+    });
 }
 
 function isAuthenticate(req, res, next) {
-    const bearerHeader = req.headers["authorization"];
+    const bearerHeader = req.body.token;
     if (typeof bearerHeader !== 'undefined') {
-      const bearer = bearerHeader.split(" ");
-      const bearerToken = bearer[1];
-      req.token = bearerToken;
-      authenticate(req.token,(err,user)=>{
-          if(err) return res.send(403, err);
-          req.user = user;
-          return next();
-      })
+        const bearer = bearerHeader.split(" ");
+        const bearerToken = bearer[0];
+        req.token = bearerToken;
+        authenticate(req.token, res, (err, user) => {
+            if (err) return res.send(403, err);
+            req.user = user;
+            return next();
+        })
     } else {
-      res.send(403,"NoTOKEN");
+        res.send(403, "NoTOKEN");
     }
-  }
-
-function checkUser(user, next) {
-    if(!user) return next("NoUserObject");
-    const query = "SELECT user_id, user_label FROM user_setup WHERE user_Name ='" + user.username + "' AND user_password='" + user.password + "'"
-    
-    db_query.query(query, function (err, user) {
-        if (err) return mext(err);
-        if (!user.length) return next("USERNOTFOUND");
-        return next(null, {user_id:user[0].user_id, name: user[0].user_label});
-    });
 }
 
-function getTocken(user){
-    const token = jwt.sign(user,"secret_key_goes_here");
+function checkUserMongoose(user, next) {
+    if (!user) return next("NoUserObject");
+    UserModel.findOne({ username: user.username }, (err, result) => {
+        if (err) return next(err);
+        if (!result) return next("User Not found In Mongoose");
+        let response = {
+            username: result.username,
+            password: result.password
+        }
+        return next(null, response);
+    })
+}
+
+function generateTocken(user) {
+    var round = 10;
+    const salt = bcrypt.genSaltSync(round)
+    const token = bcrypt.hashSync(user.username + ',' + user.password, salt)
     return token;
 }
 
-function decriptToken(token, next){
-    if(!token) return next("NOTOKEN");
-    jwt.verify(token, 'secret_key_goes_here', function(err, data) {
-        if (err) return next("INVALIDTOKEN")
-        else return next(null, data)
+function login(user, next) {
+    var accessTime = Date.now();
+    var commaSeparatedNameAndPass = accessTime + ',' + user.username + ',' + user.password;
+    checkUserMongoose(user, (err, res) => {
+        if (err) return next(err);
+        const data = {
+            username: res.username,
+            token: generateTocken(user),
+            password: res.password
+        }
+
+        saveInRadis(data.token, commaSeparatedNameAndPass, (err, result) => {
+            if (err) return next(err);
+            return callback(null, null, result)
+        })
+        return next(null, data);
     });
 }
 
-function login(user, next){
-    checkUser(user,(err, res)=>{
-        if(err) return next(err);
-        const data = {
-            doctor_id: res.user_id,
-            token: getTocken(user),
-            name: res.name
+function saveInRadis(token, commaSeparatedNameAndPass, next) {
+    //expire key after 31 minutes.
+    redisClient.redisUser.set(token, commaSeparatedNameAndPass, 'EX', 60 * 31);
+}
+
+function checkUserRedis(token, res, next) {
+    if (!token) return next("NoToken");
+    redisClient.redisUser.get(token, function (err, result) {
+        if (err) return next(err);
+        if (!result) return next("key Not found in redis");
+        var redisTime = result.split(',')[0];
+        var gapInMillis = Date.now() - redisTime;
+        //1 800 000 millisecond = 30 minutes
+        if (gapInMillis > 1800000) {
+            redisClient.redisUser.del(token);
+            return next("Not active Token");
         }
-        return next(null, data);
-    });
+        else {
+            var tokenValues = result.split(',');
+            commaSeparatedNameAndPass = Date.now() + ',' + tokenValues[1] + ',' + tokenValues[2];
+            //expire key after 31 minutes.
+            redisClient.redisUser.set(token, commaSeparatedNameAndPass, 'EX', 60 * 31);
+            return next(null, null, result);
+        }
+
+    })
 }
 exports.isAuthenticate = isAuthenticate;
 exports.login = login;
