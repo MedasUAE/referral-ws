@@ -4,7 +4,7 @@ const corsMiddleware = require('restify-cors-middleware')
 var config = require('./config/config');
 var redis = require('redis');
 //creates a new redis client at host 127.0.0.1 and port 6379
-var redisUser = redis.createClient('6379', '127.0.0.1');
+var redisClient = redis.createClient(config.redis_port, config.redis_host);
 var mongoose = require('mongoose');
 
 // server started
@@ -45,8 +45,8 @@ server.listen(config.port, () => {
     require('./routes')(server);
     console.log("node Server started on port: ", config.port);
 });
-redisUser.on('connect', function () {
-    console.log('connected to redis server on port 6379: ');
+redisClient.on('connect', function () {
+    console.log('connected to redis server on port : ',config.redis_port);
 });
 
 /**
@@ -57,4 +57,4 @@ mongoose.connection.on('error', function () {
     console.error('MongoDB Connection Error. Please make sure that MongoDB is running.');
 });
 
-exports.redisUser = redisUser;
+exports.redisClient = redisClient;

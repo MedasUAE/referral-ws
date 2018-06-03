@@ -4,7 +4,7 @@ var referPatientSchema = mongoose.Schema({
     name: String,
     mobile: Number,
     image:String,
-    referDate:String
+    referDate:{ type: Date, default: Date.now }
    
 },{strict:false});
 
